@@ -1,0 +1,70 @@
+Set params for running the 2D Ising simulation using the Metropolis algorithm.
+This config file will be read by the Ising2D.jl script to run the simulation
+It will then generate equilibrium configurations and thermodynamic data.
+If you have any more questions, email ribei040@umn.edu
+Make sure you are within the correct folder to run the simulation.
+
+Set below params after the equals sign.
+
+--- Simulation Temperature Range ---
+the range of temperatures to be sampled using Metropolis algorithm.
+
+T_sim_initial_value=2
+
+T_sim_final_value=2.1
+
+T_sim_step_size=0.1
+
+
+
+--- Exact Temperature Range ---
+the range of temperatures to be used in calculating the exact solutions.
+
+T_exact_initial_value=0.5
+
+T_exact_final_value=4.0
+
+T_exact_step_size=0.02
+
+
+
+--- epoch ---
+the number of spins to be flipped during the simulation. This is defined as the
+number of time steps in the simulation. Important to notice that the burnout
+region of the Markov chain is preset to be the first 80% of configurations.
+
+epoch=100000000
+
+
+
+--- frequency ---
+the frequency to which compute thermodynamic quantities. Important to note that
+this frequency will only take place after the burnout region.
+
+freq=100
+
+
+
+--- lattice length ---
+the side length of the square lattice to simulate.
+
+L=50
+
+
+
+--- perBC ---
+This will determine whether the simulation will
+have periodic or fixed boundary conditions.
+For fixed boundary conditions, type "fixed" after bc_type.
+For periodic boundary conditions, type "periodic" after bc_type.
+
+bc_type=periodic
+
+
+
+--- Algorithm ---
+Determine whether to run the simulation using Metropolis or Wolff
+algorithms. Type "metropolis" for the metropolis algorithm,
+type "wolff" for wolff algorithm
+
+ag=wolff
