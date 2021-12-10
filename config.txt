@@ -9,20 +9,20 @@ Set below params after the equals sign.
 --- Simulation Temperature Range ---
 the range of temperatures to be sampled using Metropolis algorithm.
 
-T_sim_initial_value=2
+T_sim_initial_value=2.0
 
-T_sim_final_value=2.1
+T_sim_final_value=2.8
 
-T_sim_step_size=0.1
+T_sim_step_size=0.05
 
 
 
 --- Exact Temperature Range ---
 the range of temperatures to be used in calculating the exact solutions.
 
-T_exact_initial_value=0.5
+T_exact_initial_value=2.0
 
-T_exact_final_value=4.0
+T_exact_final_value=2.8
 
 T_exact_step_size=0.02
 
@@ -33,7 +33,7 @@ the number of spins to be flipped during the simulation. This is defined as the
 number of time steps in the simulation. Important to notice that the burnout
 region of the Markov chain is preset to be the first 80% of configurations.
 
-epoch=100000000
+epoch=1000
 
 
 
@@ -41,14 +41,14 @@ epoch=100000000
 the frequency to which compute thermodynamic quantities. Important to note that
 this frequency will only take place after the burnout region.
 
-freq=100
+freq=10
 
 
 
 --- lattice length ---
 the side length of the square lattice to simulate.
 
-L=50
+L=100
 
 
 
@@ -67,4 +67,4 @@ Determine whether to run the simulation using Metropolis or Wolff
 algorithms. Type "metropolis" for the metropolis algorithm,
 type "wolff" for wolff algorithm
 
-ag=wolff
+ag=metropolis

@@ -283,10 +283,10 @@ function sweep_wolff(
         # println(time)
         if spins_flipped > 0.80*epoch && (time % freq == 0)
             energy = get_energy(lattice, L, bc_type)
-            mag = sum(lattice)
+            mag = abs(sum(lattice))
             push!(E, energy)
             push!(M, mag)
-            save_configs(lattice, T, time, configspath)
+            #save_configs(lattice, T, time, configspath)
         end
     end
 
@@ -396,7 +396,7 @@ function sweep_metropolis(
         time += 1
         if (time > 0.8 * epoch) && (time % freq == 0)
             push!(Energy, energy)
-            mag = sum(lattice)
+            mag = abs(sum(lattice))
             push!(Mag, mag)
             # save_configs(lattice, T, time, configspath)
         end
@@ -516,6 +516,7 @@ function plot_data(
         framestyle = :box,
         c = "black"
     )
+    println(T_exact)
     plot!(
     T_exact,
     exact_data[:,3],
@@ -673,7 +674,7 @@ function get_exact_properties(T)
     return [Energy cv Mag]
 end
 
-function make_gif(
+function make_gif_mag(
     T,
     epoch,
     freq,
@@ -697,43 +698,177 @@ function make_gif(
      lattice = generate_lattice(L, false) :
      lattice = generate_lattice(L, true)
      )
-
     energy = get_energy(lattice, L, bc_type)
     Time = []
-    Energy = []
+    # Energy = []
+    Mag = []
     # cv = 0.0
 
     time = 1
-    spidx = 1
+    # spidx = 1
+    spin_flips = 0
     a = Animation()
-    e_exact = get_exact_energy(T)
+    # e_exact = get_exact_energy(T)
+    mag_exact = get_exact_magnetization(T)
     while time < epoch
-        (spidx == L^2) ? spidx = 1 : spidx += 1
-        lattice, energy, flip = metropolis_step(lattice, spidx, L, energy, β, bc_type)
+        # (spidx == L^2) ? spidx = 1 : spidx += 1
+        # lattice, energy, flip = metropolis_step(lattice, spidx, L, energy, β, bc_type)
+        lattice, cluster_size = wolff_step(lattice, L, β, bc_type)
+        spin_flips += cluster_size
+        mag = abs(sum(lattice) / L^2)
         push!(Time, time)
-        push!(Energy, energy/L^2)
+        push!(Mag, mag)
         time += 1
-        # if flip time += 1 end
         if (time % freq == 0)
             println(time/epoch*100)
             rl = reform_lattice(lattice,L)
             hmap = heatmap(rl, title = string(round(time/epoch*100, digits = 2))*"%", legend = :none, aspect_ratio = :equal)
-            eplot = plot(Time, Energy, label = "MCMC")
-            plot!(eplot, [0;time], [e_exact; e_exact], label = "exact value (T="*string(T)*")")
+            eplot = plot(Time, Mag, label = "MCMC", title = string(spin_flips))
+            plot!(eplot, [0;time], [mag_exact; mag_exact], label = "exact value (T="*string(T)*")", legend = :none)
             xlabel!(eplot, "time")
-            ylabel!(eplot, L"U")
+            ylabel!(eplot, L"M/N")
             p = plot(hmap, eplot, layout = (1, 2))
             frame(a, p)
-            save_configs(lattice, time, T, configspath)
+        end
+    end
+    # v = var(Energy)
+    # cv = β^2 * v / L^2
+    # Energy = mean(Energy) / L^2
+    gif(a, "2D_Ising_Magnetization.gif", fps = FPS)
+    return [Time Mag]
+end
+
+function make_gif_u(
+    T,
+    epoch,
+    freq,
+    L,
+    bc_type,
+    FPS
+    )
+    """
+    given temperature T, runs a simulation using the Metropolis algorithm
+    Params
+        epoch: number of spin flips
+        freq: frequency with which to output data
+        L: lattice length
+    Returns
+        E: specific internal energy approximation
+        Cv: specific approximation for heat capacity
+    """
+    β = 1.0 / T
+     (
+     β < 0.4407 ?
+     lattice = generate_lattice(L, false) :
+     lattice = generate_lattice(L, true)
+     )
+    energy = get_energy(lattice, L, bc_type)
+    Time = []
+    Energy = []
+    Mag = []
+    # cv = 0.0
+
+    time = 1
+    # spidx = 1
+    spin_flips = 0
+    a = Animation()
+    # e_exact = get_exact_energy(T)
+    energy_exact = get_exact_energy(T)
+    while time < epoch
+        # (spidx == L^2) ? spidx = 1 : spidx += 1
+        # lattice, energy, flip = metropolis_step(lattice, spidx, L, energy, β, bc_type)
+        lattice, cluster_size = wolff_step(lattice, L, β, bc_type)
+        spin_flips += cluster_size
+        energy = get_energy(lattice, L, bc_type) / L^2
+        push!(Time, time)
+        push!(Energy, energy)
+        time += 1
+        if (time % freq == 0)
+            println(time/epoch*100)
+            rl = reform_lattice(lattice,L)
+            hmap = heatmap(rl, title = string(round(time/epoch*100, digits = 2))*"%", legend = :none, aspect_ratio = :equal)
+            eplot = plot(Time, Energy, label = "MCMC", title = string(spin_flips))
+            plot!(eplot, [0;time], [energy_exact; energy_exact], label = "exact value (T="*string(T)*")", legend = :none)
+            xlabel!(eplot, "time")
+            ylabel!(eplot, L"M/N")
+            p = plot(hmap, eplot, layout = (1, 2))
+            frame(a, p)
         end
     end
     # v = var(Energy)
     # cv = β^2 * v / L^2
     # Energy = mean(Energy) / L^2
     gif(a, "2D_Ising_Energy.gif", fps = FPS)
+    return [Time Energy]
 end
 
-function get_wolff_steps2eq(
+function make_gif_cv(
+    T,
+    epoch,
+    freq,
+    L,
+    bc_type,
+    FPS
+    )
+    """
+    given temperature T, runs a simulation using the Metropolis algorithm
+    Params
+        epoch: number of spin flips
+        freq: frequency with which to output data
+        L: lattice length
+    Returns
+        E: specific internal energy approximation
+        Cv: specific approximation for heat capacity
+    """
+    β = 1.0 / T
+     (
+     β < 0.4407 ?
+     lattice = generate_lattice(L, false) :
+     lattice = generate_lattice(L, true)
+     )
+    Time = []
+    Energy = []
+    Cv = []
+    # cv = 0.0
+
+    time = 1
+    # spidx = 1
+    spin_flips = 0
+    a = Animation()
+    # e_exact = get_exact_energy(T)
+    cv_exact = get_exact_cv(T)
+    while time < epoch
+        # (spidx == L^2) ? spidx = 1 : spidx += 1
+        # lattice, energy, flip = metropolis_step(lattice, spidx, L, energy, β, bc_type)
+        lattice, cluster_size = wolff_step(lattice, L, β, bc_type)
+        spin_flips += cluster_size
+        energy = get_energy(lattice, L, bc_type)
+        push!(Energy, energy)
+        time += 1
+        if (time % freq == 0)
+            cv = β^2 * var(Energy) / L^2
+            push!(Time, time)
+            push!(Cv, cv)
+            println(time/epoch*100)
+            rl = reform_lattice(lattice,L)
+            hmap = heatmap(rl, title = string(round(time/epoch*100, digits = 2))*"%", legend = :none, aspect_ratio = :equal)
+            eplot = plot(Time, Cv, label = "MCMC", title = string(spin_flips))
+            plot!(eplot, [0;time], [cv_exact; cv_exact], label = "exact value (T="*string(T)*")", legend = :none)
+            xlabel!(eplot, "time")
+            ylabel!(eplot, L"M/N")
+            p = plot(hmap, eplot, layout = (1, 2))
+            frame(a, p)
+            E = []
+        end
+    end
+    # v = var(Energy)
+    # cv = β^2 * v / L^2
+    # Energy = mean(Energy) / L^2
+    gif(a, "2D_Ising_Cv.gif", fps = FPS)
+    return [Time Cv]
+end
+
+function get_wolff_steps2eq_u(
     T,
     freq,
     L,
@@ -752,20 +887,96 @@ function get_wolff_steps2eq(
     lattice = generate_lattice(L, true)
     )
     # create arrays where data is stored
-    #initialize vars
-    energy = 100
+    # initialize vars
+    expt_u = 0
     spins_flipped = 0.0
-    time = 0
-    # run simulation until internal energy converges
-    while abs(exact_u - energy) >= rtol
+    time = 1
+    # run simulation until magnetization converges
+    while abs((exact_u - expt_u) / exact_u) >= rtol
         lattice, cluster_size = wolff_step(lattice, L, β, bc_type)
         spins_flipped += cluster_size
-        time += 1
         if (time % freq == 0)
-            energy = get_energy(lattice, L, bc_type) / L^2
+            # println(abs((exact_u - expt_u) / exact_u))
+            expt_u = get_energy(lattice, L, bc_type) / L^2
         end
+        time += 1
     end
-    return abs(exact_u - energy), spins_flipped
+    return spins_flipped
+end
+
+function get_wolff_steps2eq_cv(
+    T,
+    freq,
+    L,
+    rtol,
+    bc_type
+    )
+    """
+    runs simulation using Wolff algorithm for one temperature value
+    returns internal energy, heat capacity, and magnetization
+    """
+    exact_cv = get_exact_cv(T) # benchmark
+    β = 1.0 / T
+    (
+    β > 0.4407 ?
+    lattice = generate_lattice(L, false) :
+    lattice = generate_lattice(L, true)
+    )
+    # create arrays where data is stored
+    # initialize vars
+    expt_cv = 0.0
+    spins_flipped = 0
+    time = 1
+    Energy = []
+    # run simulation until cv converges
+    while abs((exact_cv - expt_cv) / exact_cv) >= rtol
+        lattice, cluster_size = wolff_step(lattice, L, β, bc_type)
+        spins_flipped += cluster_size
+        u = get_energy(lattice, L, bc_type)
+        push!(Energy, u)
+        if time % 1000 == 0
+            println(abs((exact_cv - expt_cv) / exact_cv))
+            expt_cv = β^2*var(Energy) / L^2
+            E = []
+        end
+        time += 1
+    end
+    return spins_flipped
+end
+
+function get_wolff_steps2eq_mag(
+    T,
+    freq,
+    L,
+    rtol,
+    bc_type
+    )
+    """
+    runs simulation using Wolff algorithm for one temperature value
+    returns internal energy, heat capacity, and magnetization
+    """
+    exact_mag = get_exact_magnetization(T) # benchmark
+    β = 1.0 / T
+    (
+    β > 0.4407 ?
+    lattice = generate_lattice(L, false) :
+    lattice = generate_lattice(L, true)
+    )
+    # create arrays where data is stored
+    # initialize vars
+    expt_mag = 0
+    spins_flipped = 0.0
+    time = 1
+    # run simulation until magnetization converges
+    while abs((exact_mag - expt_mag) / exact_mag) >= rtol
+        lattice, cluster_size = wolff_step(lattice, L, β, bc_type)
+        spins_flipped += cluster_size
+        if (time % freq == 0)
+            expt_mag = abs(sum(lattice) / L^2)
+        end
+        time += 1
+    end
+    return spins_flipped
 end
 
 function get_metropolis_steps2eq(
@@ -779,7 +990,7 @@ function get_metropolis_steps2eq(
     runs simulation using Wolff algorithm for one temperature value
     returns internal energy, heat capacity, and magnetization
     """
-    exact_u = get_exact_energy(T) # benchmark
+    exact_cv = get_exact_cv(T) # benchmark
 
     β = 1.0 / T
     (
@@ -787,23 +998,28 @@ function get_metropolis_steps2eq(
     lattice = generate_lattice(L, false) :
     lattice = generate_lattice(L, true)
     )
+
     lattice = generate_lattice(L, true)
     energy = get_energy(lattice, L, bc_type)
-    cv = 0.0
 
     time = 1
     spidx = 1
-    # println(abs(exact_u - energy/L^2))
-    while abs(exact_u - energy/L^2) >= rtol
-        # println(abs(exact_u - energy/L^2))
+    Energy = zeros(freq)
+    expt_cv = 1e5
+    while abs((exact_cv - expt_cv) / exact_cv) >= rtol
         lattice, energy = metropolis_step(lattice, spidx, L, energy, β, bc_type)
+        Energy[time] = energy
+        if time % freq == 0
+            expt_cv = β^2 * var(Energy) / L^2
+            Energy = zeros(freq)
+        end
         (spidx == L^2) ? spidx = 1 : spidx += 1
         time += 1
     end
     return time
 end
 
-function wolff_steps2eq(
+function wolff_steps2eq_u(
     T,
     freq,
     L,
@@ -815,15 +1031,78 @@ function wolff_steps2eq(
         println("Equilibrating lattice of length = "*string(len))
         data = zeros(length(T), 2)
         for (iidx, temp) in ProgressBar(enumerate(T))
-            spin_flips = get_wolff_steps2eq(temp,freq,len,rtol,bc_type)[2]
+            spin_flips = get_wolff_steps2eq_u(temp,freq,len,rtol,bc_type)
             data[iidx, 1] = temp
             data[iidx, 2] = spin_flips
         end
-        plot!(p, data[:,1], data[:,2], label = string(len), yaxis = :log)
+        plot!(p, data[:,1], data[:,2], label = string(len), title = title = "U (rtol = "*string(round(rtol, digits=4))*")")
     end
     xlabel!(L"T")
-    ylabel!(L"N_{flip}")
-    savefig(p, "wolff_time2eq.png")
+    ylabel!(L"N_{\text{flip}}")
+    savefig(p, "wolff_time2eq_u.png")
+end
+
+function wolff_steps2eq_cv(
+    T,
+    freq,
+    L,
+    rtol,
+    bc_type
+    )
+    p = plot()
+    for (jidx, len) in enumerate(L)
+        println("Equilibrating lattice of length = "*string(len))
+        data = zeros(length(T), 2)
+        for (iidx, temp) in ProgressBar(enumerate(T))
+            spin_flips = get_wolff_steps2eq_cv(temp,freq,len,rtol,bc_type)
+            data[iidx, 1] = temp
+            data[iidx, 2] = spin_flips
+        end
+        plot!(p, data[:,1], data[:,2], label = string(len), title = "Cv (rtol = "*string(rtol)*")")
+    end
+    xlabel!(L"T")
+    ylabel!(L"N_{\text{flip}}")
+    savefig(p, "wolff_time2eq_cv.png")
+end
+
+function wolff_steps2eq_mag(
+    T,
+    freq,
+    L,
+    rtol,
+    bc_type
+    )
+    p = plot()
+    for (jidx, len) in enumerate(L)
+        println("Equilibrating lattice of length = "*string(len))
+        data = zeros(length(T), 2)
+        for (iidx, temp) in ProgressBar(enumerate(T))
+            spin_flips = get_wolff_steps2eq_mag(temp,freq,len,rtol,bc_type)
+            data[iidx, 1] = temp
+            data[iidx, 2] = spin_flips
+        end
+        plot!(p, data[:,1], data[:,2], label = string(len), title = "M (rtol = "*string(round(rtol, digits=4))*")")
+    end
+    xlabel!(L"T")
+    ylabel!(L"N_{\text{flip}}")
+    savefig(p, "wolff_time2eq_mag.png")
+end
+
+function wolff_steps2eq(
+    T,
+    freq,
+    L,
+    rtol,
+    bc_type,
+    thermo_quant
+    )
+    if thermo_quant == "internal energy"
+        wolff_steps2eq_u(T, freq, L, rtol, bc_type)
+    elseif thermo_quant == "heat capacity"
+        wolff_steps2eq_cv(T, freq, L, rtol, bc_type)
+    else
+        wolff_steps2eq_mag(T, freq, L, rtol, bc_type)
+    end
 end
 
 function metropolis_steps2eq(
@@ -856,7 +1135,6 @@ main method
 function main()
     T_sim, T_exact, epoch, freq, L, bc_type, ag = get_params()
     ising_repo_path = pwd()
-
     today_date = string(today())
     mkpath("Simulation_Results/"*today_date*"/configs/")
     mkpath("Simulation_Results/"*today_date*"/plots/")
@@ -891,6 +1169,17 @@ function main()
 end
 
 main()
+#
+# L = 500
+# data = make_gif_u(
+#     0.5,
+#     800,
+#     10,
+#     L,
+#     periodic,
+#     8
+#     )
+
 
 # In order to check how long it would take a lattice of side length L
 # being equilibrated over temperature range T, you can run the command below
@@ -905,7 +1194,9 @@ main()
 #   -- type of boundary condition
 #
 # For wolff:
-# wolff_steps2eq(0.5:0.1:5, 1000, [100 200 500], 10^-2, periodic)
+# wolff_steps2eq(0.5:1.0:5, 1000, [100], 10^-1, periodic, "heat capacity")
+# wolff_steps2eq(0.5:0.1:5, 1000, [100 200 300], 10^-3, periodic, "internal energy")
+# wolff_steps2eq(0.5:0.1:5, 1000, [100 200 300], 10^-3, periodic, "magnetization")
 #
 # For metropolis:
 # metropolis_steps2eq(1.0:0.5:5, 1000, [100 200 500], 10^-2, periodic)
