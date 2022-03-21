@@ -1380,8 +1380,8 @@ function main()
     println("##### End of simulation #####")
 end
 
-cd("/Users/danielribeiro/IsingModelJulia/")
-data = main()
+cd("/home/mart5523/ribei040/IsingModelJulia")
+main()
 
 
 # include("2DEntropy.jl")
