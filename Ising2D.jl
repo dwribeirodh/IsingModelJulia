@@ -10,6 +10,7 @@ using DelimitedFiles: readdlm, writedlm
 using Dates: today
 using LaTeXStrings
 using DataStructures
+using GilbertCurves
 
 abstract type periodic end
 abstract type fixed end
@@ -71,6 +72,10 @@ function reform_lattice(lattice, L)
         sqrlat[i, j] = lattice[idx]
     end
     return sqrlat
+end
+
+function get_hilbert_mask(sqrlat)
+    return GilbertCurves.gilbertorder(sqrlat)
 end
 
 """
@@ -223,8 +228,9 @@ function wolff_step(
     performs one time step of the
     Wolff algorithm
     """
-    i,j = (rand(1:L), rand(1:L))
-    k = get_global_domain(i,j,L)
+    # i,j = (rand(1:L), rand(1:L))
+    # k = get_global_domain(i,j,L)
+    k = rand(1:L^2)
     state = lattice[k]
     cluster_size = 0
     p = 1 - exp(-2*β)
@@ -256,6 +262,7 @@ function sweep_wolff(
     epoch,
     freq,
     L,
+    niter,
     bc_type,
     configspath
     )
@@ -265,36 +272,43 @@ function sweep_wolff(
     """
     β = 1.0 / T
      (
-     β > 0.4407 ?
+     β > 1 / (2 / log(1+sqrt(2))) ?
      lattice = generate_lattice(L, false) :
      lattice = generate_lattice(L, true)
      )
 
-    cv = 0
-    spins_flipped = 0
-    E = []
-    M = []
-
-    time = 0
-    while spins_flipped < epoch
-        lattice, cluster_size = wolff_step(lattice, L, β, bc_type)
-        spins_flipped += cluster_size
-        time += 1
-        # println(time)
-        if spins_flipped > 0.80*epoch && (time % freq == 0)
-            energy = get_energy(lattice, L, bc_type)
-            mag = abs(sum(lattice))
-            push!(E, energy)
-            push!(M, mag)
-            #save_configs(lattice, T, time, configspath)
-        end
-    end
-
-    sigma2 = var(E)
-    cv = β^2*sigma2 / L^2
-    E = mean(E) / L^2
-    M = mean(M) / L^2
-    return E, cv, M
+         cv = 0
+         spins_flipped = 0
+         E = []
+         M = []
+         n_config_save = 1
+         time = 0
+         while spins_flipped < epoch
+         # while time < epoch
+             lattice, cluster_size = wolff_step(lattice, L, β, bc_type)
+             spins_flipped += cluster_size
+             # println(time)
+             # if spins_flipped > 0.95*epoch && (spins_flipped % freq == 0)
+            if spins_flipped > 0.95*epoch
+                time += 1
+                if (time % freq == 0)
+                    energy = get_energy(lattice, L, bc_type)
+                    #println(spins_flipped)
+                    mag = abs(sum(lattice))
+                    push!(E, energy)
+                    push!(M, mag)
+                    if niter == 1 && n_config_save <= 50
+                        save_configs(lattice, L, T, time, configspath)
+                        n_config_save += 1
+                    end
+                end
+            end
+         end
+         sigma2 = var(E)
+         cv = β^2*sigma2 / L^2
+         E = mean(E) / L^2
+         M = mean(M) / L^2
+         return E, cv, M
 end
 
 function wolff_simulation(
@@ -303,7 +317,8 @@ function wolff_simulation(
     freq,
     L,
     bc_type,
-    configspath
+    configspath;
+    niter = 5
     )
     """
     generates thermodynamic data for 2D Ising model.
@@ -311,21 +326,27 @@ function wolff_simulation(
     """
     println("Running Wolff simulation...")
     Tlen = length(T)
-    Energy = zeros(Tlen)
-    Cv = zeros(Tlen)
-    Mag = zeros(Tlen)
-    variance = zeros(Tlen)
-    for (idx, temp) in ProgressBar(enumerate(T))
-        Energy[idx], Cv[idx], Mag[idx] = sweep_wolff(
-            temp,
-            epoch,
-            freq,
-            L,
-            bc_type,
-            configspath
-        )
+    Energy = zeros(Tlen, niter)
+    Cv = zeros(Tlen, niter)
+    Mag = zeros(Tlen, niter)
+    for jidx in ProgressBar(1:niter)
+        for (iidx, temp) in ProgressBar(enumerate(T))
+            Energy[iidx, jidx], Cv[iidx, jidx], Mag[iidx, jidx] = sweep_wolff(
+                temp,
+                epoch,
+                freq,
+                L,
+                jidx,
+                bc_type,
+                configspath
+            )
+        end
     end
-    return [Energy Cv Mag]
+    sim_data = [mean(Energy, dims=2) mean(Cv, dims=2) mean(Mag, dims=2)]
+    sigma =  [std(Energy, dims=2) std(Cv, dims=2) std(Mag, dims=2)]
+
+
+    return [sim_data sigma]
 end
 
 """
@@ -361,6 +382,7 @@ function sweep_metropolis(
     epoch,
     freq,
     L,
+    niter,
     bc_type,
     configspath
     )
@@ -376,7 +398,7 @@ function sweep_metropolis(
     """
     β = 1.0 / T
      (
-     β > 0.4407 ?
+     β > 1 / (2 / log(1+sqrt(2))) ?
      lattice = generate_lattice(L, false) :
      lattice = generate_lattice(L, true)
      )
@@ -389,16 +411,19 @@ function sweep_metropolis(
 
     time = 1
     spidx = 1
-
+    nconfig = 1
     while time < epoch
         lattice, energy = metropolis_step(lattice, spidx, L, energy, β, bc_type)
         (spidx == L^2) ? spidx = 1 : spidx += 1
         time += 1
-        if (time > 0.8 * epoch) && (time % freq == 0)
+        if (time > 0.99 * epoch) && (time % freq == 0)
             push!(Energy, energy)
             mag = abs(sum(lattice))
             push!(Mag, mag)
-            # save_configs(lattice, T, time, configspath)
+            if niter == 1 && nconfig <=3
+                save_configs(lattice, L, T, time, configspath)
+                nconfig += 1
+            end
         end
     end
     v = var(Energy)
@@ -414,7 +439,8 @@ function metropolis_simulation(
     freq,
     L,
     bc_type,
-    configspath
+    configspath;
+    niter = 5
     )
     """
     generates thermodynamic data for 1D xy using Metropolis.
@@ -422,30 +448,36 @@ function metropolis_simulation(
 
     println("Running Metropolis simulation...")
     Tlen = length(T)
-    Energy = zeros(Tlen)
-    Cv = zeros(Tlen)
-    Mag = zeros(Tlen)
-    variance = zeros(Tlen)
-    for (idx, temp) in ProgressBar(enumerate(T))
-        Energy[idx], Cv[idx], Mag[idx] = sweep_metropolis(
-            temp,
-            epoch,
-            freq,
-            L,
-            bc_type,
-            configspath
-        )
+    Energy = zeros(Tlen, niter)
+    Cv = zeros(Tlen, niter)
+    Mag = zeros(Tlen, niter)
+    for jidx in ProgressBar(1:niter)
+        for (iidx, temp) in ProgressBar(enumerate(T))
+            Energy[iidx,jidx], Cv[iidx,jidx], Mag[iidx,jidx] = sweep_metropolis(
+                temp,
+                epoch,
+                freq,
+                L,
+                jidx,
+                bc_type,
+                configspath
+            )
+        end
     end
-    return [Energy Cv Mag]#, variance
+    sim_data = [mean(Energy, dims=2) mean(Cv, dims=2) mean(Mag, dims=2)]
+    sigma =  [std(Energy, dims=2) std(Cv, dims=2) std(Mag, dims=2)]
+    return [sim_data sigma]
 end
 
-function save_configs(lattice, T, time, configspath)
+function save_configs(lattice, L, T, time, configspath)
     """
     saves configurations to txt file
     file name will be:
     2d_ising_config_temperature_spinsflipped.txt
     """
-    fname = "2d_ising_config_" * string(T) * "_" * string(time) * ".txt"
+    sqrlat = reform_lattice(lattice, L)
+    lattice = get_hilbert_mask(sqrlat)
+    fname = "2d_ising_config_" * string(T) * "_" * string(time) *"_"* string(L) * ".txt"
     open(configspath * fname, "w") do io
         writedlm(io, lattice)
     end
@@ -454,7 +486,7 @@ end
 function plot_data(
         sim_data,
         T_sim,
-        # variance,
+        sigma,
         exact_data,
         T_exact,
         epoch,
@@ -466,66 +498,108 @@ function plot_data(
     """
 
     println("Plotting and saving figures to: " * plotspath)
+    shading = 0.4
 
-    e_plot = scatter(
-        T_sim,
-        sim_data[:, 1],
-        #ribbon = variance,
-        #fillalpha = 0.5,
-        label = "MCMC",
-        tick_direction = :out,
-        legend = :bottomright,
-        c = "black"
-    )
-    plot!(
+    e_plot = plot(
         T_exact,
         exact_data[:, 1],
         label = "exact",
-        c = "maroon"
+        c = "maroon",
+        minorticks=:false,
+        tick_direction = :out,
+        framestyle=:box,
+        thickness_scaling=1.6,
+        grid=:none,
+        guidefontsize=12
     )
-    xlabel!(L"T")
-    ylabel!(L"\frac{U}{N}")
+    scatter!(e_plot,
+        T_sim,
+        sim_data[:, 1],
+        ribbon = sigma[:, 1],
+        fillalpha = shading,
+        xlabel=L"T",
+        ylabel=L"U",
+        minorticks=:false,
+        tick_direction = :out,
+        framestyle=:box,
+        thickness_scaling=1.6,
+        grid=:none,
+        guidefontsize=12,
+        legend = :bottomright,
+        legendfontsize=6,
+        label = "MCMC",
+        c = "lightblue"
+    )
+
     savefig(e_plot, plotspath * "2d_ising_energy_"*string(epoch)*"_"*string(L)*".png")
 
-    cv_plot = scatter(
-        T_sim,
-        sim_data[:, 2],
-        label = "MCMC",
-        tick_direction = :out,
-        legend = :best,
-        color = "black"
-    )
-    plot!(
+    cv_plot = plot(
         T_exact,
         exact_data[:, 2],
         label = "exact",
-        c = "maroon"
+        c = "maroon",
+        minorticks=:false,
+        tick_direction = :out,
+        framestyle=:box,
+        thickness_scaling=1.6,
+        grid=:none,
+        guidefontsize=12
     )
-    xlabel!(L"T")
-    ylabel!(L"\frac{C_{v}}{N}")
+    scatter!(cv_plot,
+        T_sim,
+        sim_data[:, 2],
+        ribbon = sigma[:, 2],
+        fillalpha = shading,
+        xlabel=L"T",
+        ylabel=L"C_{v}/N",
+        minorticks=:false,
+        tick_direction = :out,
+        framestyle=:box,
+        thickness_scaling=1.6,
+        grid=:none,
+        guidefontsize=12,
+        legend = :topright,
+        legendfontsize=6,
+        label = "MCMC",
+        c = "lightblue"
+    )
+
     savefig(cv_plot, plotspath * "2d_ising_cv_" * string(epoch) * "_" * string(L) * ".png")
 
-    mag_plot = scatter(
+    mag_plot = plot(
+        T_exact,
+        exact_data[:,3],
+        label = "exact",
+        c = "maroon",
+        minorticks=:false,
+        tick_direction = :out,
+        framestyle=:box,
+        thickness_scaling=1.6,
+        grid=:none,
+        guidefontsize=12
+    )
+
+    scatter!(mag_plot,
         T_sim,
         sim_data[:, 3],
-        label = "MCMC",
+        ribbon = sigma[:, 3],
+        fillalpha = shading,
+        xlabel=L"T",
+        ylabel=L"M",
+        minorticks=:false,
         tick_direction = :out,
-        legend = :best,
-        color = "black",
-        grid = :none,
-        framestyle = :box,
-        c = "black"
+        framestyle=:box,
+        thickness_scaling=1.6,
+        grid=:none,
+        guidefontsize=12,
+        legend = :topright,
+        legendfontsize=6,
+        label = "MCMC",
+        c = "lightblue"
     )
-    println(T_exact)
-    plot!(
-    T_exact,
-    exact_data[:,3],
-    label = "exact",
-    c = "maroon",
-    )
-    xlabel!(L"T")
-    ylabel!(L"\frac{M}{N}")
+
     savefig(mag_plot, plotspath * "2d_ising_mag_" * string(epoch) * "_" * string(L) * ".png")
+    # return (e_plot, cv_plot, mag_plot)
 end
 
 """
@@ -774,7 +848,7 @@ function make_gif_u(
     a = Animation()
     # e_exact = get_exact_energy(T)
     energy_exact = get_exact_energy(T)
-    while time < epoch
+    while spin_flips < epoch
         # (spidx == L^2) ? spidx = 1 : spidx += 1
         # lattice, energy, flip = metropolis_step(lattice, spidx, L, energy, β, bc_type)
         lattice, cluster_size = wolff_step(lattice, L, β, bc_type)
@@ -1128,6 +1202,139 @@ function metropolis_steps2eq(
     savefig(p, "metropolis_time2eq.png")
 end
 
+function plot_gif(rl, time, epoch, T, Time, u, u_exact)
+
+    hmap = heatmap(rl,
+    title = string(round(time/epoch*100, digits = 2))*"%"*", T = "*string(T),
+    legend = :none,
+    minorticks=:false,
+    tick_direction = :out,
+    framestyle=:box,
+    aspect_ratio = :equal,
+    grid=:none,
+    )
+
+    figplot1 = plot(Time,
+    u,
+    xlabel = L"N_f",
+    ylabel = L"U / N",
+    label = "MCMC",
+    minorticks=:false,
+    tick_direction = :out,
+    framestyle=:box,
+    grid=:none,
+    legend = :best,
+    c = "maroon"
+    )
+    plot!(figplot1, [0;time], [u_exact;u_exact], label = "exact value (T="*string(T)*")", c = "black")
+
+    p = plot(hmap, figplot1, layout = (1,2))
+    return p
+end
+
+function make_gif_u_metropolis(
+    T,
+    epoch,
+    freq,
+    L,
+    bc_type,
+    FPS,
+    gifpath
+    )
+
+    β = 1.0 / T
+    lattice = generate_lattice(L, true)
+
+    energy = get_energy(lattice, L, bc_type)
+
+    cv = 0.0
+    Time = []
+    Energy = []
+    Mag = []
+
+    time = 1
+    spidx = 1
+    a = Animation()
+    a2 = Animation()
+    energy_exact = get_exact_energy(T)
+    mag_exact = get_exact_magnetization(T)
+    p = 1
+    while time < epoch
+        lattice, energy = metropolis_step(lattice, spidx, L, energy, β, bc_type)
+        push!(Time, time)
+        push!(Energy, energy / L^2)
+        push!(Mag, abs(sum(lattice)) / L^2)
+        (spidx == L^2) ? spidx = 1 : spidx += 1
+        time += 1
+        if (time % freq == 0)
+            println(time/epoch*100)
+            rl = reform_lattice(lattice,L)
+            p = plot_gif(rl, time, epoch, T, Time, Energy, energy_exact)
+            p2 = plot_gif(rl, time, epoch, T, Time, Mag, mag_exact)
+            frame(a, p)
+            frame(a2, p2)
+        end
+    end
+    gif(a, gifpath*"gif_metropolis_U_epoch_"*string(epoch)*".gif", fps = FPS)
+    gif(a2, gifpath*"gif_metropolis_Mag_epoch_"*string(epoch)*".gif", fps = FPS)
+end
+
+function make_gif_u_wolff(
+    T,
+    epoch,
+    freq,
+    L,
+    bc_type,
+    FPS,
+    gifpath
+    )
+
+    β = 1.0 / T
+    lattice = generate_lattice(L, true)
+
+    energy = get_energy(lattice, L, bc_type)
+
+    cv = 0.0
+    Time = []
+    Energy = []
+    Mag = []
+
+    time = 1
+    a = Animation()
+    a2 = Animation()
+    energy_exact = get_exact_energy(T)
+    mag_exact = get_exact_magnetization(T)
+    p = 1
+    spin_flips = 0
+    while spin_flips < epoch
+        println(string(spin_flips/epoch*100))
+        lattice, cluster_size = wolff_step(lattice, L, β, bc_type)
+        spin_flips += cluster_size
+        energy = get_energy(lattice, L, bc_type) / L^2
+        push!(Time, spin_flips)
+        push!(Energy, energy)
+        push!(Mag, abs(sum(lattice)) / L^2)
+        time += 1
+        if (time % freq == 0)
+            println(time/epoch*100)
+            rl = reform_lattice(lattice,L)
+            p = plot_gif(rl, spin_flips, epoch, T, Time, Energy, energy_exact)
+            p2 = plot_gif(rl, spin_flips, epoch, T, Time, Mag, mag_exact)
+            frame(a, p)
+            frame(a2, p2)
+        end
+    end
+    gif(a, gifpath*"gif_wolff_U_epoch_"*string(epoch)*".gif", fps = FPS)
+    gif(a2, gifpath*"gif_wolff_Mag_epoch_"*string(epoch)*".gif", fps = FPS)
+
+    # v = var(Energy)
+    # cv = β^2 * v / L^2
+    # Energy = mean(Energy) / L^2
+    # Mag = mean(Mag) / L^2
+    # return Energy, cv, Mag
+    # return p
+end
+
 """
 main method
 """
@@ -1137,48 +1344,57 @@ function main()
     ising_repo_path = pwd()
     today_date = string(today())
     mkpath("Simulation_Results/"*today_date*"/configs/")
-    mkpath("Simulation_Results/"*today_date*"/plots/")
+    mkpath("Simulation_Results/"*today_date*"/plots/wolff/")
+    mkpath("Simulation_Results/"*today_date*"/plots/metropolis/")
+    mkpath("Simulation_Results/"*today_date*"/gifs/")
     # mkpath("Simulation_Results/"*today_date*"/energy/") # not currently being  used
     configs_path = ising_repo_path*"/Simulation_Results/"*today_date*"/configs/"
     plots_path = ising_repo_path*"/Simulation_Results/"*today_date*"/plots/"
+    gif_path = ising_repo_path*"/Simulation_Results/"*today_date*"/gifs/"
     exact_data = get_exact_properties(T_exact)
-    if ag == "metropolis"
+    # if ag == "metropolis"
         metro_data = metropolis_simulation(T_sim, epoch, freq, L, bc_type, configs_path)
-        plot_data(metro_data,
+        plot_data(metro_data[:,1:3],
         T_sim,
-        # variance,
+        metro_data[:,4:end],
         exact_data,
         T_exact,
         epoch,
         L,
-        plots_path
+        plots_path*"metropolis/"
         )
-    else
-        wolff_data = wolff_simulation(T_sim, epoch, freq, L, bc_type, configs_path)
-        plot_data(wolff_data,
-        T_sim,
-        # variance,
-        exact_data,
-        T_exact,
-        epoch,
-        L,
-        plots_path
-        )
-    end
+    # else
+    # wolff_data = wolff_simulation(T_sim, epoch, freq, L, bc_type, configs_path)
+    # plot_data(wolff_data[:, 1:3],
+    # T_sim,
+    # wolff_data[:, 4:end],
+    # exact_data,
+    # T_exact,
+    # epoch,
+    # L,
+    # plots_path*"wolff/"
+    # )
+    # return wolff_data
+    # return metro_data
+    # return (p1,p2,p3)
     println("##### End of simulation #####")
 end
 
-main()
-#
-# L = 500
-# data = make_gif_u(
-#     0.5,
-#     800,
-#     10,
-#     L,
-#     periodic,
-#     8
-#     )
+cd("/Users/danielribeiro/IsingModelJulia/")
+data = main()
+
+
+# include("2DEntropy.jl")
+# plot_data(wolff_data = wolff_simulation(T_sim, epoch, freq, L, bc_type, configs_path)
+
+# temp = 3.0
+# epoch = 10000
+# freq = 1
+# L = 100
+# FPS = 10
+# gif_path = pwd()
+# make_gif_u_wolff(temp, epoch, freq, L, periodic, FPS, gif_path)
+# make_gif_u_metropolis(temp, epoch, freq, L, periodic, FPS, gif_path)
 
 
 # In order to check how long it would take a lattice of side length L
