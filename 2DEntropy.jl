@@ -210,26 +210,26 @@ function get_s(T)
     return S_exact
 end
 
-L = 250
-cd("/Users/danielribeiro/IsingModelJulia/")
+L = 512
+cd("/home/mart5523/ribei040/IsingModelJulia")
 sc = pyimport("sweetsourcod.lempel_ziv")
 ising_repo_path = pwd()
 today_date = string(today())
 mkpath("Simulation_Results/"*today_date*"/configs/")
 mkpath("Simulation_Results/"*today_date*"/plots/wolff/")
-# configs_path = ising_repo_path*"/Simulation_Results/"*today_date*"/configs/"
-configs_path = "/Users/danielribeiro/IsingModelJulia/Simulation_Results/2022-03-20/configs/"
+configs_path = ising_repo_path*"/Simulation_Results/"*today_date*"/configs/"
+# configs_path = "/Users/danielribeiro/IsingModelJulia/Simulation_Results/2022-03-20/configs/"
 plots_path = ising_repo_path*"/Simulation_Results/"*today_date*"/plots/metropolis/"
-final_data, data = dir_parser(L^2, configs_path, sc, 12, 2)
+final_data, data = dir_parser(L^2, configs_path, sc, 41, 1)
 S_exact = get_s(2.0:0.001:3.2)
-# plot_data_entropy(
-#     L,
-#     final_data[:,1],
-#     final_data[:,2],
-#     final_data[:,3],
-#     S_exact,
-#     plots_path
-# )
+plot_data_entropy(
+    L,
+    final_data[:,1],
+    final_data[:,2],
+    final_data[:,3],
+    S_exact,
+    plots_path
+)
 
 # using Distributions
 
