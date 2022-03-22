@@ -20,6 +20,7 @@ def read_file(fname, path):
     and opens it as a numpy array
     """
     config = np.loadtxt(path+fname, dtype='int8')
+    config = shift_lattice_states(config)
     return config
 
 def parse_directory(configs_path, L, niter = 1000):
@@ -40,7 +41,11 @@ def parse_directory(configs_path, L, niter = 1000):
 def save_entropy(H, h_path):
     np.savetxt(h_path+"entropy_data.txt", H, fmt='%f')
     
-
+def shift_lattice_states(lattice):
+    """
+    sweetsourcod only deals with positive states
+    """
+    return lattice + 1
 
 def get_cid(vec):
     """
