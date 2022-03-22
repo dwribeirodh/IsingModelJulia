@@ -8,11 +8,11 @@ Created on Tue Mar 22 09:39:57 2022
 
 
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from sweetsourcod.lempel_ziv import lempel_ziv_complexity
 from os import listdir
-from scipy.special import iv as besseli
-from scipy.integrate import quad
+# from scipy.special import iv as besseli
+# from scipy.integrate import quad
 
 def read_file(fname, path):
     """
