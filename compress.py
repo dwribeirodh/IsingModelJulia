@@ -11,6 +11,7 @@ import numpy as np
 # import matplotlib.pyplot as plt
 from sweetsourcod.lempel_ziv import lempel_ziv_complexity
 from os import listdir
+from tqdm import tqdm
 # from scipy.special import iv as besseli
 # from scipy.integrate import quad
 
@@ -31,7 +32,7 @@ def parse_directory(configs_path, L, niter = 1000):
     dir_list.sort()
     H = np.zeros(len(dir_list), dtype = float)
     cid_rand = get_cid_rand(L, niter)
-    for (idx,fname) in enumerate(dir_list):
+    for (idx,fname) in tqdm(enumerate(dir_list)):
         if fname != ".DS_Store":
             lattice = read_file(fname, configs_path)
             cid = get_cid(lattice)
