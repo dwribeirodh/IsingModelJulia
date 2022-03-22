@@ -416,11 +416,11 @@ function sweep_metropolis(
         lattice, energy = metropolis_step(lattice, spidx, L, energy, β, bc_type)
         (spidx == L^2) ? spidx = 1 : spidx += 1
         time += 1
-        if (time > 0.99 * epoch) && (time % freq == 0)
+        if (time > 0.95 * epoch) && (time % freq == 0)
             push!(Energy, energy)
             mag = abs(sum(lattice))
             push!(Mag, mag)
-            if niter == 1 && nconfig <=3
+            if niter == 1 && nconfig <=500
                 save_configs(lattice, L, T, time, configspath)
                 nconfig += 1
             end

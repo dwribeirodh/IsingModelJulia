@@ -24,7 +24,9 @@ end
 function get_stats(h_data_fname, h_path, ntemp, nconfig)
     h_data = readdlm(h_path*h_data_fname, ',')
     final_data = zeros(ntemp, 2)
-    for (iidx) in 1:ntemp
+    println("----------")
+    println("Calculating stats for entropy values...")
+    for (iidx) in ProgressBar(1:ntemp)
         h = zeros(nconfig)
         for (jidx) in 1:nconfig
             row = iidx*jidx
