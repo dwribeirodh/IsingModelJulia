@@ -249,7 +249,7 @@ plot_data_entropy(
     S_exact,
     final_data[:,1],
     1:0.1:5,
-    plotspath
+    plots_path
 )
 
 # using Distributions
