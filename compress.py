@@ -182,7 +182,7 @@ def get_entropy(cid, cid_rand):
 #     return 0
 
 L = 512
-configs_path = "/home/mart5523/ribei040/IsingModelJulia/Simulation_Results/2022-03-21/configs/"
+configs_path = "/home/mart5523/ribei040/IsingModelJulia/Simulation_Results/2022-03-22/configs/"
 h_path = "/home/mart5523/ribei040/IsingModelJulia/Simulation_Results/"
 H = parse_directory(configs_path, L**2)
 save_entropy(H, h_path)
