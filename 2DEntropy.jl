@@ -230,7 +230,7 @@ T = 1:0.1:5
 ntemp = 41
 nconfig = 1
 cd("/home/mart5523/ribei040/IsingModelJulia")
-sc = pyimport("sweetsourcod.lempel_ziv")
+# sc = pyimport("sweetsourcod.lempel_ziv")
 ising_repo_path = pwd()
 # today_date = string(today())
 # mkpath("Simulation_Results/"*today_date*"/configs/")
