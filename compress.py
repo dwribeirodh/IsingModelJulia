@@ -32,7 +32,7 @@ def parse_directory(configs_path, L, niter = 1000):
     dir_list.sort()
     H = np.zeros(len(dir_list), dtype = float)
     cid_rand = get_cid_rand(L, niter)
-    for (idx,fname) in tqdm(enumerate(dir_list)):
+    for (idx,fname) in tqdm(enumerate(dir_list), ncols = 5000):
         if fname != ".DS_Store":
             lattice = read_file(fname, configs_path)
             cid = get_cid(lattice)
