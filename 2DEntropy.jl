@@ -21,6 +21,21 @@ function read_config_file(fname, path)
     return config, temp
 end
 
+function get_stats(h_data_fname, h_path, ntemp, nconfig)
+    h = readdlm(h_path*h_data_fname, ',')
+    final_data = zeros(ntemp, 2)
+    for (iidx) in 1:ntemp
+        h = zeros(nconfig)
+        for (jidx) in 1:nconfig
+            row = iidx*jidx
+            h[jidx] = h_data[row]
+        end
+        final_data[iidx,1] = mean(h)
+        final_data[iidx,2] = std(h)
+    end
+    return final_data
+end
+
 function dir_parser(L, path, sc, nT, nit)
     """
     parse directory of config data and return vector of entropy data
@@ -160,14 +175,14 @@ end
 
 function plot_data_entropy(
     L,
-    T,
-    S,
-    StDev,
+    T_exact,
     S_exact,
+    S_sim,
+    T_sim,
     plotspath
     )
     s_plot = plot(
-        T,
+        T_exact,
         S_exact,
         label = "exact",
         c = "maroon",
@@ -180,8 +195,8 @@ function plot_data_entropy(
     )
     shading = 0.5
     scatter!(s_plot,
-        T,
-        S,
+        T_sim,
+        S_sim,
         xlabel=L"T",
         ylabel=L"S/N",
         # ribbon = StDev,
@@ -211,24 +226,28 @@ function get_s(T)
 end
 
 L = 512
+T = 1:0.1:5
 cd("/home/mart5523/ribei040/IsingModelJulia")
 sc = pyimport("sweetsourcod.lempel_ziv")
 ising_repo_path = pwd()
-today_date = string(today())
-mkpath("Simulation_Results/"*today_date*"/configs/")
-mkpath("Simulation_Results/"*today_date*"/plots/wolff/")
-configs_path = ising_repo_path*"/Simulation_Results/"*today_date*"/configs/"
-# configs_path = "/Users/danielribeiro/IsingModelJulia/Simulation_Results/2022-03-20/configs/"
-plots_path = ising_repo_path*"/Simulation_Results/"*today_date*"/plots/metropolis/"
-final_data, data = dir_parser(L^2, configs_path, sc, 41, 1)
-S_exact = get_s(2.0:0.001:3.2)
+# today_date = string(today())
+# mkpath("Simulation_Results/"*today_date*"/configs/")
+# mkpath("Simulation_Results/"*today_date*"/plots/wolff/")
+# configs_path = ising_repo_path*"/Simulation_Results/"*today_date*"/configs/"
+# configs_path = "/home/mart5523/ribei040/IsingModelJulia/Simulation_Results/2022-03-21/configs/"
+# plots_path = ising_repo_path*"/Simulation_Results/"*today_date*"/plots/metropolis/"
+plots_path = "/home/mart5523/ribei040/IsingModelJulia/Simulation_Results/2022-03-21/"
+h_data_fname = "entropy_data.txt"
+h_path = "/home/mart5523/ribei040/IsingModelJulia/Simulation_Results/"
+final_data = get_stats(h_data_fname, h_path, ntemp, nconfig)
+S_exact = get_s(T)
 plot_data_entropy(
     L,
-    final_data[:,1],
-    final_data[:,2],
-    final_data[:,3],
+    T,
     S_exact,
-    plots_path
+    final_data[:,1],
+    1:0.1:5,
+    plotspath
 )
 
 # using Distributions
