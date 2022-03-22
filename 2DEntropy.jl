@@ -22,7 +22,7 @@ function read_config_file(fname, path)
 end
 
 function get_stats(h_data_fname, h_path, ntemp, nconfig)
-    h = readdlm(h_path*h_data_fname, ',')
+    h_data = readdlm(h_path*h_data_fname, ',')
     final_data = zeros(ntemp, 2)
     for (iidx) in 1:ntemp
         h = zeros(nconfig)
