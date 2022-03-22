@@ -172,7 +172,7 @@ function get_exact_entropy(T)
     computes exact entropy of the system
     """
     s = (get_exact_energy(T) - get_exact_free_energy(T)) / T
-    return s
+    return s / log(2)
 end
 
 function plot_data_entropy(
@@ -230,7 +230,7 @@ end
 L = 512
 T = 1:0.1:5
 ntemp = 41
-nconfig = 1
+nconfig = 500
 cd("/home/mart5523/ribei040/IsingModelJulia")
 # sc = pyimport("sweetsourcod.lempel_ziv")
 ising_repo_path = pwd()

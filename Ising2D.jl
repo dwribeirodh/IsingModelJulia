@@ -720,7 +720,7 @@ function get_exact_entropy(T)
     computes exact entropy of the system
     """
     s = (get_exact_energy(T) - get_exact_free_energy(T)) / T
-    return s
+    return s / log(2)
 end
 
 function get_exact_cv(T)

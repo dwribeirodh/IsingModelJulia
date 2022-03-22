@@ -73,7 +73,7 @@ def get_entropy(cid, cid_rand):
     of sequence
     """
     s = cid / cid_rand
-    return s*np.log(2)
+    return s
 
 # def get_entropy(cid, cid_rand, T, n, L):
 #     """
