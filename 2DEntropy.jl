@@ -23,19 +23,23 @@ end
 
 function get_stats(h_data_fname, h_path, ntemp, nconfig)
     h_data = readdlm(h_path*h_data_fname, ',')
-    final_data = zeros(ntemp, 2)
+    havg = []
+    hstdev = []
     println("----------")
     println("Calculating stats for entropy values...")
-    for (iidx) in ProgressBar(1:ntemp)
-        h = zeros(nconfig)
-        for (jidx) in 1:nconfig
-            row = iidx*jidx
-            h[jidx] = h_data[row]
+    ctr = 0
+    h = zeros(nconfig, 1)
+    for iidx in ProgressBar(1:length(h_data))
+        ctr += 1
+        h[ctr] = h_data[iidx]
+        if ctr == nconfig
+            push!(havg, mean(h))
+            push!(hstdev, std(h))
+            ctr = 0
+            h = zeros(nconfig, 1)
         end
-        final_data[iidx,1] = mean(h)
-        final_data[iidx,2] = std(h)
     end
-    return final_data
+    return [havg hstdev]
 end
 
 function dir_parser(L, path, sc, nT, nit)
@@ -88,19 +92,19 @@ function dir_parser(L, path, sc, nT, nit)
     # return data
 end
 
-function shift_vec_vals(lattice)
-    for (idx,val) in enumerate(lattice)
-        if val == -1
-            lattice[idx] = 0
-        end
-    end
-    return lattice
-end
+# function shift_vec_vals(lattice)
+#     for (idx,val) in enumerate(lattice)
+#         if val == -1
+#             lattice[idx] = 0
+#         end
+#     end
+#     return lattice
+# end
 
 function get_entropy(x, L, cid_rand, sc)
     # L = length(x)
     # cid_rand = get_cid_rand(L, niter, sc)
-    cid = sc.lempel_ziv_complexity(x, "lz77")[2] / L
+    cid = sc.lempel_ziv_complexity(x, "lz77")[2]
     s = cid / cid_rand
     return s
 end
@@ -121,27 +125,27 @@ function get_cid_rand(L, niter, sc)
     return cid_rand
 end
 
-function get_entropy_rate(c, nsites, norm)
-    """
-    compute entropy rate
-    """
-    h = (c * log2(c) + 2 * c * log2(nsites / c)) / nsites
-    h /= norm
-    return h
-end
-
-function get_entropy_lz77(lattice, nsites, d, sc)
-    """
-    """
-    rand_seq = rand(d, nsites)
-    c_bin, sumlog_bin = sc.lempel_ziv_complexity(rand_seq, "lz77")
-    h_bound_bin = get_entropy_rate(c_bin, nsites, 1)
-    h_sumlog_bin = sumlog_bin
-    c, h_sumlog = sc.lempel_ziv_complexity(lattice, "lz77")
-    h_bound = get_entropy_rate(c, nsites, h_bound_bin)
-    h_sumlog /= h_sumlog_bin
-    return h_bound, h_sumlog
-end
+# function get_entropy_rate(c, nsites, norm)
+#     """
+#     compute entropy rate
+#     """
+#     h = (c * log2(c) + 2 * c * log2(nsites / c)) / nsites
+#     h /= norm
+#     return h
+# end
+#
+# function get_entropy_lz77(lattice, nsites, d, sc)
+#     """
+#     """
+#     rand_seq = rand(d, nsites)
+#     c_bin, sumlog_bin = sc.lempel_ziv_complexity(rand_seq, "lz77")
+#     h_bound_bin = get_entropy_rate(c_bin, nsites, 1)
+#     h_sumlog_bin = sumlog_bin
+#     c, h_sumlog = sc.lempel_ziv_complexity(lattice, "lz77")
+#     h_bound = get_entropy_rate(c, nsites, h_bound_bin)
+#     h_sumlog /= h_sumlog_bin
+#     return h_bound, h_sumlog
+# end
 
 
 function get_exact_free_energy(T)
@@ -175,12 +179,18 @@ function get_exact_entropy(T)
     return s / log(2)
 end
 
+function get_error(s_exact, s_cid)
+    return abs.(s_exact .- s_cid) ./ s_exact
+end
+
 function plot_data_entropy(
     L,
     T_exact,
     S_exact,
     S_sim,
     T_sim,
+    abserror,
+    stdev,
     plotspath
     )
     s_plot = plot(
@@ -195,28 +205,50 @@ function plot_data_entropy(
         grid=:none,
         guidefontsize=12,
     )
-    shading = 0.5
-    scatter!(s_plot,
+    shading = 0.4
+    plot!(s_plot,
         T_sim,
         S_sim,
         xlabel=L"T",
         ylabel=L"S/N",
-        # ribbon = StDev,
+        # ribbon = stdev,
         # fillalpha = shading,
-        # yerror = StDev,
+        # yerror = stdev,
         minorticks=:false,
         tick_direction = :out,
         framestyle=:box,
         thickness_scaling=1.6,
         grid=:none,
-        guidefontsize=12,
+        guidefontsize=10,
         legend = :bottomright,
         legendfontsize=6,
         label = "LZ-77",
-        c = "lightblue"
+        c = "blue"
     )
     savefig(s_plot, plotspath*"2D_ising_entropy"*string(L)*".png")
     # return s_plot
+
+
+    errplot = plot(
+        T_sim,
+        abserror,
+        xlabel=L"T",
+        ylabel=L"| S - S_{\textbf{CID}} | / S",
+        label = "error",
+        c = "maroon",
+        ribbon = stdev ./ S_exact,
+        fillalpha = 0.4,
+        minorticks=:false,
+        tick_direction = :out,
+        framestyle=:box,
+        thickness_scaling=1.6,
+        grid=:none,
+        guidefontsize=10,
+        legend = :best,
+        legendfontsize=6,
+        # yaxis=:log
+    )
+    savefig(errplot, plotspath*"2D_ising_entropy_error"*string(L)*".png")
 end
 
 function get_s(T)
@@ -231,7 +263,7 @@ L = 512
 T = 1:0.1:5
 ntemp = 41
 nconfig = 500
-cd("/home/mart5523/ribei040/IsingModelJulia")
+cd("/Users/danielribeiro/IsingModelJulia/")
 # sc = pyimport("sweetsourcod.lempel_ziv")
 ising_repo_path = pwd()
 # today_date = string(today())
@@ -240,18 +272,21 @@ ising_repo_path = pwd()
 # configs_path = ising_repo_path*"/Simulation_Results/"*today_date*"/configs/"
 # configs_path = "/home/mart5523/ribei040/IsingModelJulia/Simulation_Results/2022-03-21/configs/"
 # plots_path = ising_repo_path*"/Simulation_Results/"*today_date*"/plots/metropolis/"
-plots_path = "/home/mart5523/ribei040/IsingModelJulia/Simulation_Results/2022-03-21/"
+plots_path = "/Users/danielribeiro/IsingModelJulia/Simulation_Results/2022-03-22/plots/metropolis/"
 h_data_fname = "entropy_data.txt"
-h_path = "/home/mart5523/ribei040/IsingModelJulia/Simulation_Results/"
+h_path = "/Users/danielribeiro/IsingModelJulia/Simulation_Results/"
 final_data = get_stats(h_data_fname, h_path, ntemp, nconfig)
 S_exact = get_s(T)
+err = get_error(S_exact, final_data[:,1])
 plot_data_entropy(
-    L,
-    T,
-    S_exact,
-    final_data[:,1],
-    1:0.1:5,
-    plots_path
+L,
+T,
+S_exact,
+final_data[:,1],
+T,
+err,
+final_data[:,2],
+plots_path
 )
 
 # using Distributions
